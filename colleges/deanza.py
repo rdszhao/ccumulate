@@ -17,19 +17,19 @@ dept_url = 'https://www.deanza.edu/schedule/'
 # regex for getting department information
 dept_re = re.compile(r'([A-Z\W]+) - (.+)')
 
-def __update_departments__(self):
+def __update_departments__(session):
     # get all relevant info from soup object by directory
-    soup = soupify(self.url, 'option', to_text=True)[1:]
+    soup = soupify(dept_url, 'option', to_text=True)[1:]
 
     departments = []
     for listing in soup:
         dcode, dname = dept_re.search(listing).groups()
-        url = f'https://www.deanza.edu/schedule/listings.html?dept={dcode}&t={self.period}'
+        url = f'https://www.deanza.edu/schedule/listings.html?dept={dcode}&t={session}'
         active, soup_obj = is_active(url)
         if active:
             departments.append((dcode, dname, soup_obj))
 
-    self.departments = departments
+    return departments
 
 # course info extraction regex
 crn_re = re.compile(r'[0-9]{4,}')
@@ -39,14 +39,14 @@ fall2020 = '09/21/2020 - 12/11/2020'
 
 def update_df(self):
     # update / get all active departments first
-    self.__update_departments__()
+    departments = __update_departments__(self.session)
 
     # legacy ordering
     ordering = ['Department', 'Course', 'Enrollment', 'Name', 'Days', 'Times', 'Delivery']
 
     # build dict from extracted data to compile into dataframe
     course_dict = {}
-    for dcode, dname, soup in self.departments:
+    for dcode, dname, soup in departments:
         subj_dict = {}
         i = 0
         while True:
@@ -91,8 +91,11 @@ def update_df(self):
         custom_cols=ordering,
         loc_name='De Anza College',
         normalize=True,
+        online_filter=True,
         Session=fall2020
     )
     return self.df
 
+# bind update_df() to instance to make it accessible once imported
 de_anza.update_df = MethodType(update_df, de_anza)
+de_anza.update_df = de_anza.bind(update_df)

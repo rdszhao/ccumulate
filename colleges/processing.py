@@ -7,12 +7,19 @@ import ssl
 class College:
     session = None
     df = None
+    df_constructor = None
 
     def __init__(self, name):
         self.name = name
 
-    def update_session(self, new):
+    def change_session(self, new):
         self.session = new
+
+    def bind(self, df_constructor):
+        self.df_constructor = df_constructor
+
+    def update(self):
+        self.df = self.df_constructor()
 
 
 def url_process(url, use_ssl=False):
