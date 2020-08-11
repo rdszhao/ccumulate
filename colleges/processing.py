@@ -1,7 +1,19 @@
 from urllib.request import urlopen
 from bs4 import BeautifulSoup as bs
 import pandas as pd
+from types import MethodType
 import ssl
+
+class College:
+    session = None
+    df = None
+
+    def __init__(self, name):
+        self.name = name
+
+    def update_session(self, new):
+        self.session = new
+
 
 def url_process(url, use_ssl=False):
     if use_ssl:
@@ -25,6 +37,7 @@ cols = ['Department', 'Course', 'Name', 'Days', 'Times', 'Session', 'Delivery', 
 full_cats = cols.copy()
 full_cats.insert(0, 'Location')
 
+
 def makeframe(dict, custom_cols=None, loc_name=None, online_filter=False, normalize=False, **new_cols):
     if not custom_cols:
         custom_cols = cols
@@ -42,6 +55,7 @@ def makeframe(dict, custom_cols=None, loc_name=None, online_filter=False, normal
     if loc_name:
         df.insert(0, 'Location', loc_name)
     return df
+
 
 def framecheck(df):
     for cat in full_cats:
