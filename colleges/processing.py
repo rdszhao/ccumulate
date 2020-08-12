@@ -38,7 +38,7 @@ options.add_argument = '--window-size1920.1200'
 DRIVER_PATH = '/Users/raymondzhao/Documents/Projects/toolkit/scraping/chromedriver'
 
 
-def __driver__(url, xpaths=None, headless=True, persist=True):
+def __driver__(url, xpaths=None, headless=True):
     'uses a url to start a selenium chromedriver, navigating with xpaths as needed'
     options.headless = headless
     driver = webdriver.Chrome(options=options, executable_path=DRIVER_PATH)
@@ -49,8 +49,6 @@ def __driver__(url, xpaths=None, headless=True, persist=True):
                 driver.find_element_by_xpath(xpath).click()
         except TypeError as e:
             raise(e)
-    if not persist:
-        driver.quit()
     return driver
 
 
@@ -59,7 +57,7 @@ class Driver:
 
     def __init__(self, url, xpaths=None, headless=True, persist=True):
         'returns a driver using parameters passed to __driver__'
-        self.driver = __driver__(url, xpaths, headless, persist)
+        self.driver = __driver__(url, xpaths, headless)
         self.source = self.driver.page_source
 
 
@@ -74,21 +72,33 @@ class Driver:
             self.source = self.driver.page_source
 
 
+    def stop(self):
+        self.driver.quit()
+
+
 class Soup:
     'interface for selenium scraper and beautiful soup'
     def __init__(self, url, xpaths=None, headless=True, persist=True):
         'returns bsoup object of driver source'
-        # get driver.source from url
+        self.url = url
+        self.persist = persist
+        self.headless = headless
+
         self.driver = Driver(url, xpaths, headless, persist)
         src = self.driver.source
         self.base =  bs(src, features='lxml')
+        if not self.persist:
+            self.driver.stop()
 
 
     def rebase(self, xpaths):
         'navigates and updates base given new xpaths'
-        self.driver = self.driver.__navigate__(self, xpaths)
-        src = self.driver.page_source
-        self.base =  bs(src, features='lxml')
+        if not self.persist:
+            self.driver = self.driver.__navigate__(self, xpaths)
+            src = self.driver.page_source
+            self.base =  bs(src, features='lxml')
+        else:
+            print('only rebase if persist enabled')
 
 
     def extract(self, *tags, to_text=True, normalize=True, **attributes):
