@@ -1,27 +1,28 @@
-from processing import College, __soupify__, __makeframe__
+from processing import College, soupify, extract, makeframe
 import re
 
 de_anza = College('De Anza College')
-de_anza.change_session('F2020')
+de_anza.session = 'F2020'
 
+# url with department information
+DEPT_URL = 'https://www.deanza.edu/schedule/'
 
 def __is_active__(url):
-    soup = __soupify__(url, 'td')
+    'checks if classes are offered by a department'
+    soup = extract(soupify(url), 'td')
     if len(soup) < 4:
         return False, soup
     return True, soup
 
-
-# url with department information
-DEPT_URL = 'https://www.deanza.edu/schedule/'
 
 # regex for getting department information
 dept_Re = re.compile(r'([A-Z\W]+) - (.+)')
 
 
 def __update_departments__(session):
+    'checks every department and verify health before making list'
     # get all relevant info from soup object by directory
-    soup = __soupify__(DEPT_URL, 'option', to_text=True)[1:]
+    soup = extract(soupify(DEPT_URL), 'option')[1:]
 
     departments = []
     for listing in soup:
@@ -44,8 +45,8 @@ FALL_2020 = '09/21/2020 - 12/11/2020'
 ORDERING = ['Department', 'Course', 'Enrollment', 'Name', 'Days', 'Times', 'Delivery']
 
 
-# uses departments to construct a df
-def build_func(self):
+def __build_func__(self):
+    'gets classes by department, compiles into master dict, then builds df'
     # update / get all active departments
     departments = __update_departments__(self.session)
 
@@ -91,7 +92,7 @@ def build_func(self):
         course_dict.update(subj_dict)
 
     # build df
-    df = __makeframe__(
+    df = makeframe(
         course_dict,
         custom_cols=ORDERING,
         loc_name=self.name,
@@ -102,5 +103,5 @@ def build_func(self):
     return df
 
 
-# bind the new build function to class
-de_anza.bind(build_func)
+# bind build func
+de_anza.bind(__build_func__)

@@ -1,4 +1,4 @@
-from processing import College, COLS, __soupify__, __makeframe__
+from processing import College, soupify, extract, makeframe, COLS
 import re
 
 # the basics
@@ -6,19 +6,15 @@ lacc = College('LA City College')
 lacc.session = 'Fall'
 
 URL = f'https://www.lacitycollege.edu/Academics/Classes/Open-Classes-{lacc.session}'
-soup = __soupify__(URL, 'div', class_='openClassItem clearfix')
 
 
 # make index / dictionary of departments by acronym
 def __update_departments__():
-    depts_raw = __soupify__(
-        URL,
-        'div',
-        use_ssl=True,
-        to_text=False,
-        class_='oneQuarterWidth openAnchorLink'
-    )
-    return {subj.find_all('a')[0]['href'][1:]: subj.get_text() for subj in depts_raw}
+    'compile department dict'
+    base = soupify(URL)
+    depts = extract(base, 'div', to_text=False, class_='oneQuarterWidth openAnchorLink')
+    depts = {subj.find_all('a')[0]['href'][1:]: subj.get_text() for subj in depts}
+    return depts, base
 
 
 # regex for parsing courses
@@ -31,8 +27,10 @@ date_Re = re.compile(r'Class Starts:\s+(.+)\s+Class Ends:\s+(.+)')
 
 
 # build df from dictionary compiled from regex parsing
-def build_func(self):
-    depts = __update_departments__()
+def __build_func__(self):
+    'iterates down the page to compile dict, builds df from dict'
+    depts, base = __update_departments__()
+    soup = extract(base, 'div', class_='openClassItem clearfix')
     class_dict = {}
     for section in soup:
         course = list(filter(None, section.split('\n')))
@@ -61,7 +59,7 @@ def build_func(self):
         class_dict.update({crn: info})
 
     # build df from dictionary
-    df = __makeframe__(
+    df = makeframe(
         class_dict,
         loc_name=self.name,
         online_filter=True,
@@ -70,5 +68,5 @@ def build_func(self):
     return df
 
 
-# bind build function to class
-lacc.bind(build_func)
+# bind build function
+lacc.bind(__build_func__)

@@ -15,6 +15,7 @@ DEPT_FILE = 'sdcc_depts.txt'
 cid_Re = re.compile(r'=\"(.+)\"\>(.+)<')
 
 def __update_departments__():
+    'load departments from txt file'
     # source departments
     with open(DEPT_FILE, 'r') as depts:
         file = depts.readlines()
@@ -28,8 +29,8 @@ def __update_departments__():
     return departments
 
 
-# replace truncated names with full college names
 def __college_Replace__(campus, self):
+    'replace truncated names with full college names'
     if 'City' in campus:
         return self.city
     if 'Mesa' in campus:
@@ -38,23 +39,23 @@ def __college_Replace__(campus, self):
         return self.miramar
 
 
-# concatenate start and end datetimes
 def __dt_merge__(start, end):
+    'concatenate start and end datetimes'
     if ':' in start or '/' in start:
         return f'{start} - {end}'
     return 'N/A'
 
 
-# function to source full department name from dpt dict
 def __dept_replace__(dcode, ddict):
+    'function to source full department name from dpt dict'
     try:
         return ddict[dcode]
     except KeyError:
         return 'unidentified'
 
 
-# strip gsx formatting
 def __gsx_fmt__(cats):
+    'strip gsx formatting'
     if type(cats) is str:
         return f'gsx${cats}.$t'
     elif type(cats) is list:
@@ -82,7 +83,9 @@ gsx_cats = __gsx_fmt__(CATS)
 # source the json file of all classes
 SRC = 'https://spreadsheets.google.com/feeds/list/1SXlmCfzg27fkrtJRZWhPnPGJ0jyWCimCMK3k3hZnj5Q/od6/public/values?alt=json'
 
-def build_func(self):
+
+def __build_func__(self):
+    'build df from cleaned json then clean to spec'
     response = requests.get(SRC)
     raw = response.json()
     narrowed = raw['feed']['entry']
@@ -124,5 +127,5 @@ def build_func(self):
     return df[FULL_CATS]
 
 
-# bind build func to instance
-sdcc.bind(build_func)
+# bind build function
+sdcc.bind(__build_func__)

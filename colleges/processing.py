@@ -3,89 +3,142 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 import pandas as pd
 
-# class to host build func and export data
+
+# COLLEGE STRUCT
+
 class College:
+    'class to host build func and export data'
+    # current academic session
     session = None
+    # pandas df with course information
     data = None
+    # function sequence that builds df
     build_func = None
 
     def __init__(self, name):
+        'basic, kombucha-drinking constructor'
         self.name = name
 
-    def change_session(self, new):
-        self.session = new
-
     def bind(self, new_build_func):
+        'bind build function to each instance'
         self.build_func = new_build_func
 
     def build(self):
+        'return build function and return df as well as updating c.data'
         self.data = self.build_func(self)
         return self.data
 
 
-# web scraping backend
+# SITE SCRAPER
+# backend: selenium
+
+# set selenium options
 options = Options()
-options.headless = True
-options.add_argument = '--window-siz1920.1200'
+options.add_argument = '--window-size1920.1200'
 DRIVER_PATH = '/Users/raymondzhao/Documents/Projects/toolkit/scraping/chromedriver'
 
-# returns a driver
-def __driver__(url, headless=True):
-    if not headless:
-        options.headless = False
+
+def __driver__(url, xpaths=None, headless=True, persist=True):
+    'uses a url to start a selenium chromedriver, navigating with xpaths as needed'
+    options.headless = headless
     driver = webdriver.Chrome(options=options, executable_path=DRIVER_PATH)
     driver.get(url)
+    if xpaths:
+        try:
+            for xpath in xpaths:
+                driver.find_element_by_xpath(xpath).click()
+        except TypeError as e:
+            raise(e)
+    if not persist:
+        driver.quit()
     return driver
 
 
-# returns the page source of either a driver or a url
-def __src_driver__(drv):
-    src = drv
-    if type(src) is str:
-        drv = __driver__(src)
-    src = drv.page_source
-    drv.quit()
-    return src
+class Driver:
+    'wrapper for selenium chromedriver'
+
+    def __init__(self, url, xpaths=None, headless=True, persist=True):
+        'returns a driver using parameters passed to __driver__'
+        self.driver = __driver__(url, xpaths, headless, persist)
+        self.source = self.driver.page_source
 
 
-# returns bsoup object of driver source
-def __soupify__(src, *tags, vanilla=False, to_text=True, **attributes):
-    soup = bs(__src_driver__(src), 'lxml')
-    if vanilla:
-        return soup
-    findings = soup.find_all(*tags, **attributes)
-    if to_text:
-        findings = [result.get_text() for result in findings]
-    return findings
+    def __navigate__(self, xpaths=None):
+        'navigates webpage with driver given xpaths'
+        if xpaths:
+            try:
+                for xpath in xpaths:
+                    self.driver.find_element_by_xpath(xpath).click()
+            except TypeError as e:
+                raise(e)
+            self.source = self.driver.page_source
 
 
-# unified ordering
+class Soup:
+    'interface for selenium scraper and beautiful soup'
+    def __init__(self, url, xpaths=None, headless=True, persist=True):
+        'returns bsoup object of driver source'
+        # get driver.source from url
+        self.driver = Driver(url, xpaths, headless, persist)
+        src = self.driver.source
+        self.base =  bs(src, features='lxml')
+
+
+    def rebase(self, xpaths):
+        'navigates and updates base given new xpaths'
+        self.driver = self.driver.__navigate__(self, xpaths)
+        src = self.driver.page_source
+        self.base =  bs(src, features='lxml')
+
+
+    def extract(self, *tags, to_text=True, normalize=True, **attributes):
+        'get tags and attributes from soup base with option for text conversion'
+        findings = self.base.find_all(*tags, **attributes)
+
+        if to_text:
+            findings = [result.get_text() for result in findings]
+            if normalize:
+                findings = list(filter(None, [element.strip() for element in findings]))
+
+        return findings
+
+
+# STORAGE UTILITIES
+# pandas
+
+# universal ordering for consolidation
 COLS = ['Department', 'Course', 'Name', 'Days', 'Times', 'Session', 'Delivery', 'Enrollment']
 FULL_CATS = COLS.copy()
 FULL_CATS.insert(0, 'Location')
 
 
-# construct a df from a roughly-formatted dictionary
-def __makeframe__(dict, custom_cols=None, loc_name=None, online_filter=False, normalize=False, **new_cols):
+def makeframe(dict, custom_cols=None, loc_name=None, online_filter=False, normalize=False, **new_cols):
+    'construct a df from a roughly-formatted dictionary'
+    # adhere to cols ordering if none specified
     if not custom_cols:
         custom_cols = COLS
+    # build process
     df = pd.DataFrame().from_dict(
         dict,
         orient='index',
         columns=custom_cols
     )
+    # optional: assign new columns
     if len(new_cols) > 0:
         df = df.assign(**new_cols)
+    # filter out classes that aren't online
     if online_filter:
         df = df[df['Delivery'].str.contains('online', case=False)]
+    # reorder according to COLS
     if normalize:
-        df = df[cols]
+        df = df[COLS]
+    # add singular location name
     if loc_name:
         df.insert(0, 'Location', loc_name)
     return df
 
 
-# sanity checker
-def __framecheck__(df):
+def framecheck(df):
+    'sanity checker'
     for cat in FULL_CATS:
         print(df[cat].iloc[0])
