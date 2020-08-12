@@ -1,4 +1,4 @@
-from processing import College, full_cats
+from processing import College, FULL_CATS
 from pandas.io.json import json_normalize
 import requests
 import re
@@ -9,24 +9,27 @@ sdcc.city = 'San Diego City College'
 sdcc.miramar = 'San Diego Miramar College'
 sdcc.mesa = 'San Diego Mesa College'
 
-def __update_departments__():
-    # source department / acro information
-    with open('sdcc_depts.txt', 'r') as depts:
-        file = depts.readlines()
+DEPT_FILE = 'sdcc_depts.txt'
 
-    # regex for building department dictionary
-    cid_re = re.compile(r'=\"(.+)\"\>(.+)<')
+# regex for departments
+cid_Re = re.compile(r'=\"(.+)\"\>(.+)<')
+
+def __update_departments__():
+    # source departments
+    with open(DEPT_FILE, 'r') as depts:
+        file = depts.readlines()
 
     departments = {}
     for line in file:
         line = line.strip()
-        dcode, dname = cid_re.search(line).groups()
+        dcode, dname = cid_Re.search(line).groups()
         departments.update({dcode: dname})
 
     return departments
 
+
 # replace truncated names with full college names
-def college_replace(campus, self):
+def __college_Replace__(campus, self):
     if 'City' in campus:
         return self.city
     if 'Mesa' in campus:
@@ -34,21 +37,24 @@ def college_replace(campus, self):
     if 'Miramar' in campus:
         return self.miramar
 
+
 # concatenate start and end datetimes
-def dt_merge(start, end):
+def __dt_merge__(start, end):
     if ':' in start or '/' in start:
         return f'{start} - {end}'
     return 'N/A'
 
+
 # function to source full department name from dpt dict
-def dpt_replace(dcode, ddict):
+def __dept_replace__(dcode, ddict):
     try:
         return ddict[dcode]
     except KeyError:
         return 'unidentified'
 
+
 # strip gsx formatting
-def gsx_fmt(cats):
+def __gsx_fmt__(cats):
     if type(cats) is str:
         return f'gsx${cats}.$t'
     elif type(cats) is list:
@@ -56,8 +62,9 @@ def gsx_fmt(cats):
     else:
         return 'processing error'
 
+
 # relevant categories
-cats = [
+CATS = [
     'classnbr',
     'college',
     'subject',
@@ -70,13 +77,13 @@ cats = [
     'enddate',
     'location',
 ]
-gsx_cats = gsx_fmt(cats)
+gsx_cats = __gsx_fmt__(CATS)
 
 # source the json file of all classes
-src = 'https://spreadsheets.google.com/feeds/list/1SXlmCfzg27fkrtJRZWhPnPGJ0jyWCimCMK3k3hZnj5Q/od6/public/values?alt=json'
+SRC = 'https://spreadsheets.google.com/feeds/list/1SXlmCfzg27fkrtJRZWhPnPGJ0jyWCimCMK3k3hZnj5Q/od6/public/values?alt=json'
 
 def build_func(self):
-    response = requests.get(src)
+    response = requests.get(SRC)
     raw = response.json()
     narrowed = raw['feed']['entry']
 
@@ -90,10 +97,10 @@ def build_func(self):
     df = (
         df
         [gsx_cats]
-        .rename(columns=dict(zip(gsx_cats, cats)))
+        .rename(columns=dict(zip(gsx_cats, CATS)))
     )
     df = df[df['location'].str.contains('Online')]
-    df['Location'] = df['college'].apply(college_replace, args=(self,))
+    df['Location'] = df['college'].apply(__college_Replace__, args=(self,))
     df = (
         df
         .rename(columns={'classnbr': 'crn'})
@@ -101,9 +108,9 @@ def build_func(self):
     )
 
     df['Enrollment'] = 'Open'
-    df['Times'] = df['starttime'].combine(df['endtime'], dt_merge)
-    df['Session'] = df['startdate'].combine(df['enddate'], dt_merge)
-    df['Department'] = df['subject'].apply(dpt_replace, args=(depts,))
+    df['Times'] = df['starttime'].combine(df['endtime'], __dt_merge__)
+    df['Session'] = df['startdate'].combine(df['enddate'], __dt_merge__)
+    df['Department'] = df['subject'].apply(__dept_replace__, args=(depts,))
     df = df.drop(columns=['college', 'subject', 'starttime', 'endtime', 'startdate', 'enddate'])
 
     # rename and reorder as per cols
@@ -114,9 +121,8 @@ def build_func(self):
         'location': 'Delivery',
     }
     df = df.rename(columns=rename_dict)
+    return df[FULL_CATS]
 
-    return df[full_cats]
 
 # bind build func to instance
 sdcc.bind(build_func)
-df = sdcc.build()

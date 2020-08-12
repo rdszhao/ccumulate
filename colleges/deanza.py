@@ -1,64 +1,69 @@
-from processing import College, soupify, makeframe
-from types import MethodType
+from processing import College, __soupify__, __makeframe__
 import re
 
 de_anza = College('De Anza College')
-de_anza.update_session('F2020')
+de_anza.change_session('F2020')
 
-def is_active(url):
-    soup = soupify(url, 'td')
+
+def __is_active__(url):
+    soup = __soupify__(url, 'td')
     if len(soup) < 4:
         return False, soup
     return True, soup
 
+
 # url with department information
-dept_url = 'https://www.deanza.edu/schedule/'
+DEPT_URL = 'https://www.deanza.edu/schedule/'
 
 # regex for getting department information
-dept_re = re.compile(r'([A-Z\W]+) - (.+)')
+dept_Re = re.compile(r'([A-Z\W]+) - (.+)')
+
 
 def __update_departments__(session):
     # get all relevant info from soup object by directory
-    soup = soupify(dept_url, 'option', to_text=True)[1:]
+    soup = __soupify__(DEPT_URL, 'option', to_text=True)[1:]
 
     departments = []
     for listing in soup:
-        dcode, dname = dept_re.search(listing).groups()
+        dcode, dname = dept_Re.search(listing).groups()
         url = f'https://www.deanza.edu/schedule/listings.html?dept={dcode}&t={session}'
-        active, soup_obj = is_active(url)
+        active, soup_obj = __is_active__(url)
         if active:
             departments.append((dcode, dname, soup_obj))
 
     return departments
 
-# course info extraction regex
-crn_re = re.compile(r'[0-9]{4,}')
-course_re = re.compile(r'(.+)View')
-date_re = re.compile(r'[^a-zA-Z]')
-fall2020 = '09/21/2020 - 12/11/2020'
 
-def update_df(self):
-    # update / get all active departments first
+# course info extraction regex
+crn_Re = re.compile(r'[0-9]{4,}')
+course_Re = re.compile(r'(.+)View')
+date_Re = re.compile(r'[^a-zA-Z]')
+FALL_2020 = '09/21/2020 - 12/11/2020'
+
+# legacy ordering
+ORDERING = ['Department', 'Course', 'Enrollment', 'Name', 'Days', 'Times', 'Delivery']
+
+
+# uses departments to construct a df
+def build_func(self):
+    # update / get all active departments
     departments = __update_departments__(self.session)
 
-    # legacy ordering
-    ordering = ['Department', 'Course', 'Enrollment', 'Name', 'Days', 'Times', 'Delivery']
-
-    # build dict from extracted data to compile into dataframe
+    # build dict from extracted data
     course_dict = {}
     for dcode, dname, soup in departments:
         subj_dict = {}
         i = 0
         while True:
-            if crn_re.match(soup[i]):
+            if crn_Re.match(soup[i]):
                 crn = soup[i]
                 subj_dict.update({crn: []})
                 i += 1
                 try:
-                    while not crn_re.match(soup[i]):
+                    while not crn_Re.match(soup[i]):
                         if soup[i] != 'OL' and soup[i] != '':
                             if 'View' in soup[i]:
-                                name = course_re.match(soup[i])
+                                name = course_Re.match(soup[i])
                                 if name:
                                     soup[i] = name.group(1)
                             subj_dict[crn].append(soup[i])
@@ -70,7 +75,7 @@ def update_df(self):
         # filter and format information
         for crn in subj_dict.keys():
             subj_dict[crn] = subj_dict[crn][:8]
-            subj_dict[crn][4] = date_re.sub('', subj_dict[crn][4])
+            subj_dict[crn][4] = date_Re.sub('', subj_dict[crn][4])
             if not subj_dict[crn][4]:
                 subj_dict[crn][4] = 'TBA'
             try:
@@ -81,21 +86,21 @@ def update_df(self):
                 subj_dict[crn][4] = 'TBA'
             subj_dict[crn].insert(0, dname)
             # zip into diction according to specific_cols to ready for dataframe
-            subj_dict[crn] = dict(zip(ordering, subj_dict[crn]))
+            subj_dict[crn] = dict(zip(ORDERING, subj_dict[crn]))
 
         course_dict.update(subj_dict)
 
     # build df
-    self.df = makeframe(
+    df = __makeframe__(
         course_dict,
-        custom_cols=ordering,
-        loc_name='De Anza College',
+        custom_cols=ORDERING,
+        loc_name=self.name,
         normalize=True,
         online_filter=True,
-        Session=fall2020
+        Session=FALL_2020
     )
-    return self.df
+    return df
 
-# bind update_df() to instance to make it accessible once imported
-de_anza.update_df = MethodType(update_df, de_anza)
-de_anza.update_df = de_anza.bind(update_df)
+
+# bind the new build function to class
+de_anza.bind(build_func)
